@@ -9,12 +9,12 @@ Note that bi-directional rrt* (bi_rrt.py) doesn't take any image input. It shows
 
 ## Dependencies - 
 
--Dijkstra, A* and ANA*: CV2, Numpy
+- Dijkstra, A* and ANA*: CV2, Numpy
 
--Bi-directional RRT*: Numpy, Matlplotlib
+- Bi-directional RRT*: Numpy, Matlplotlib
 
 ## Known issues
 
--Dijkstra, A* and ANA*: These planners perform slower than usual. I am looking into whether this is due to plotting or a bug.
+- Dijkstra, A* and ANA*: These planners perform slower than usual. I am looking into whether this is due to plotting or a bug.
 
--Bi-directional rrt*: The RRT trees don't seem to find the goal in lower left portion of the grid. This is a bug that I am trying to fix.
+- Bi-directional rrt*: The RRT trees don't seem to find the goal in lower left portion of the grid. This is a bug that I am trying to fix.
