@@ -17,18 +17,16 @@ PURPLE = (139, 26, 85)  # for path
 LIGHT_GRAY = (255, 0, 0)  # frontier nodes - currently not used
 DARK_GRAY = (0, 0, 255)  # expanded nodes - currently not used
 
-
 def visualize_search(map, path):
     """
     This function shows the calculated path on a greyscale version of the original image and start/end points overlayed
     on the original image. It saves a copy of the displayed images.
-    @param map: grayscale image used to plot computed start/end points and path
-    @type map:
-    @param path: list of coordinates (tuples) to be overlayed on the original image
-    @type path: list of tuples
-    @return: None
-    @rtype: type(None)
+
+    Args:
+        map (int, int): grayscale image used to plot computed start/end points and path
+        path (List[(int, int)]): list of coordinates to be overlayed on the original image
     """
+    
     pixel_access = map.copy()
 
     # draw start and end pixels
@@ -71,13 +69,16 @@ def visualize_search(map, path):
 
 def grayscale_info(map_original):
     """
-    This function calculates a grid map (2D Mmtrix) containing information about which cells in the given picture are
-    traversable. Traversable cells are stored as 1 and non-traversable cells are stored as 0.
+    This function creates a binary occupancy grid from an image. The image is
+    first converted to greyscale. If the color value of a cell is > 255/2 
+    (white), it is marked as free (as 1) in the binary occupancy grid.
+    Otherwise, it is marked as occupied (0).
 
-    @param map_original: cv2 image 
-    @type map_original: cv2 image
-    @return: grid map containing information about which cells are traversable and which ones are not
-    @rtype: 2D int numpy array
+    Args:
+        map_original (numpy.ndarray): Image
+
+    Returns:
+        2x2 numpy.ndarray: grayscale version of the image
     """
     map = cv2.cvtColor(map_original, cv2.COLOR_BGR2GRAY)
 
@@ -95,87 +96,155 @@ def grayscale_info(map_original):
 
 def h(end, row, column):
     """
-    This function calculates the heuristic distance (Manhattan distance) of the given node (row, column) with respect to
-    the required end point.
+    Calculates heuristic distance from  (row, col) from goal location. Assumes
+    4-connected cells.
 
-    @param end: end node
-    @type end: int tuple
-    @param row: horizontal position of cell (starting from left)
-    @type row: int
-    @param column: vertical position of cell (starting from top)
-    @type column: int
-    @return: heuristic value
-    @rtype: float
+    Args:
+        start (int, int): row-column information of start location on a grid
+        row (int): row of cell in a grid
+        col (int): column of cell in a grid
+
+    Returns:
+        int: Manhattan distance between start location and cell at (row, col)
     """
+
     heuristic = abs(end[0] - row) + abs(end[1] - column)  # manhattan distance
     return heuristic
 
+# NOTE: g and h both use Manhattan distance for now. This might change.
 
-def g(start, row, column):
-    g_value = abs(start[0] - row) + \
-        abs(start[1] - column)  # manhattan distance
+def g(start, row, col):
+    """
+    Calculates the cost of cell at (row, col) from start location. Assumes
+    4-connected cells.
+
+    Args:
+        start (int, int): row-column information of start location on a grid
+        row (int): row of cell in a grid
+        col (int): column of cell in a grid
+
+    Returns:
+        int: Manhattan distance between start location and cell at (row, col)
+    """
+    g_value = abs(start[0] - row) + abs(start[1] - col)  # manhattan distance
     return g_value
 
 
-def f(start, end, row, column):
-    return g(start, row, column) + h(end, row, column)
+def f(start, goal, row, column):
+    """
 
+    Function that returns the sum of cost of cell from start (g) and heuristic
+    value of that cell to the goal. The cell is located by (row, column) in a 
+    grid.
+
+    Args:
+        start (int, int): Start location on a grid
+        goal (int, int): Goal location on a grid
+        row (int): Row of cell in a grid
+        column (int): Column of cell in a grid
+
+    Returns:
+        int: Total cost associated with the cell
+    """
+    return g(start, row, column) + h(goal, row, column)
 
 def get_g(value):
+    """
+    Wrapper around g() function to help sort 'unvisited' queue by 'g values'
+
+    Args:
+        value (int, int): cell denoted by (row, column) in a grid
+
+    Returns:
+        int: g value of that cell with respect to 'start' global variable
+    """
     return g(start, value[0], value[1])
 
 
 def get_f(value):
+    """
+    Wrapper around f() function to help sort 'unvisited' queue by 'f values'
+
+    Args:
+        value (int, int): cell denoted by (row, column) in a grid
+
+    Returns:
+        int: f value of that cell wrt 'start' and 'end' global variable
+    """
     return f(start, end, value[0], value[1])
 
+'''
+TODO: Make 'start' and 'end' variables local, and find a way to get rid of 
+wrapper functions get_f and get_g.
+'''
 
-def return_neighbors(x, y, shape):
+def return_neighbors(row, col, grid_shape) -> List[(int, int)]:
     """
-    @param x: int
-    @type x: horizontal position of cell (starting from left)
-    @param y: vertical position of cell (starting from top)
-    @type y: int
-    @param shape:  dimensions of grid-map
-    @type shape: numpy shape object
-    @return: list of neighbors
-    @rtype: list of int tuples
+    This function returns the 4-connected neighbors of a cell in a grid. The
+    cell is located using (row, col) in the grid.
+
+    Args:
+        row (int): row of cell in grid
+        col (int): col of cell in grid
+        grid_shape (numpy.ndarray.shape): Dimensions of occupancy grid
+
+    Returns:
+        List[(int, int)]: List of tuples of neighbor locations in grid 
     """
-    max_x = shape[0] - 1
-    max_y = shape[1] - 1
+    max_rows = grid_shape[0] - 1 # total rows in the grid
+    max_cols = grid_shape[1] - 1 # total cols in the grid
 
-    list = []
+    list = [] # list to hold indexes of all neighbors
 
-    if x > 0:
-        list.append((x - 1, y))
-    if x < max_x:
-        list.append((x + 1, y))
-    if y > 0:
-        list.append((x, y - 1))
-    if y < max_y:
-        list.append((x, y + 1))
+    if row > 0:
+        list.append((row - 1, col))
+    if row < max_rows:
+        list.append((row + 1, col))
+    if col > 0:
+        list.append((row, col - 1))
+    if col < max_cols:
+        list.append((row, col + 1))
     return list
 
 
-def dijkstra(grid_map, start, end):
+def dijkstra(occupancy_grid, start, end) -> List[(int, int)]:
+    """
+    This function uses Dijkstra's algorithm to find a path from start location
+    to a goal location on the grid.
+
+    Args:
+        occupancy_grid (numpy.array): Binary occupancy grid (1:free, 0:occupied)
+        start (int, int): start location on grid
+        end (int, int): end location on grid
+
+    Returns:
+        List[(int, int)]: Path from start to goal location
+    """
+
+    # list of visited and unvisited cells
     visited = []
     unvisited = [start]
 
+    # dictionary of 'g' values for each cell in the occupancy grid
     gList = {}
 
-    for i in range(0, grid_map.shape[0]):
-        for j in range(0, grid_map.shape[1]):
+    # set all g values to infinity at start
+    for i in range(0, occupancy_grid.shape[0]):
+        for j in range(0, occupancy_grid.shape[1]):
             gList[(i, j)] = math.inf
 
     gList[start] = g(start, start[0], start[1])
-    prev = {start: None}
+    prev = {start: None} # dictionary for keeping track of parent cell for each cell
 
     current = start
-    counter = 0
+    counter = 0 # counter for stopping search for a path when all cells have been scanned
 
-    while (current != end and open.__sizeof__() > 0) and counter <= grid_map.size * 2:
-        neighbors = return_neighbors(current[0], current[1], grid_map.shape)
+    # TODO: Find why I added open.__sizeof__() 
+    while (current != end and open.__sizeof__() > 0) and counter <= occupancy_grid.size * 2:
+        neighbors = return_neighbors(
+            current[0], current[1], occupancy_grid.shape)
         for value in neighbors:
-            if grid_map[value[0], value[1]] != 0 and visited.count(value) == 0:
+            if occupancy_grid[value[0], value[1]] != 0 and visited.count(value) == 0:
                 if unvisited.count(value) == 0:
                     unvisited.append(value)
                 if gList[value] > g(start, value[0], value[1]):
@@ -191,8 +260,14 @@ def dijkstra(grid_map, start, end):
                 current = unvisited[0]
         counter = counter + 1
 
+    """
+    'current' cell should ideally be goal cell at this point. Back-track from
+    this node to start node to generate a path.
+    """
     path = []
     node = current
+
+    # TODO: Add end condition for what happens if node never reaches start
     while node != start:
         node = prev[node]
         path.append(node)
@@ -200,7 +275,7 @@ def dijkstra(grid_map, start, end):
     return path
 
 
-def a_star(grid_map, start, end):
+def a_star(occupancy_grid, start, end):
     visited = []
     unvisited = [start]
 
@@ -208,8 +283,8 @@ def a_star(grid_map, start, end):
     hList = {}
     fList = {}
 
-    for i in range(0, grid_map.shape[0]):
-        for j in range(0, grid_map.shape[1]):
+    for i in range(0, occupancy_grid.shape[0]):
+        for j in range(0, occupancy_grid.shape[1]):
             gList[(i, j)] = math.inf
             hList[(i, j)] = math.inf
             fList[(i, j)] = math.inf
@@ -222,11 +297,12 @@ def a_star(grid_map, start, end):
     current = start
     counter = 0
 
-    while (current != end and open.__sizeof__() > 0) and counter <= grid_map.size * 2:
+    while (current != end and open.__sizeof__() > 0) and counter <= occupancy_grid.size * 2:
         # print(counter)
-        neighbors = return_neighbors(current[0], current[1], grid_map.shape)
+        neighbors = return_neighbors(
+            current[0], current[1], occupancy_grid.shape)
         for value in neighbors:
-            if grid_map[value[0], value[1]] != 0 and visited.count(value) == 0:
+            if occupancy_grid[value[0], value[1]] != 0 and visited.count(value) == 0:
                 if unvisited.count(value) == 0:
                     unvisited.append(value)
                 if gList[value] > g(start, value[0], value[1]):
@@ -258,7 +334,7 @@ def a_star(grid_map, start, end):
 Main Code
 '''
 
-difficulty = "trivial.jpg"
+difficulty = "medium.jpg"
 
 image = cv2.imread(difficulty)
 
@@ -284,14 +360,15 @@ start_time = time.time()
 # an ordered list of (x,y) tuples, representing the path to traverse from start-->goal
 path = dijkstra(pixel_matrix, start, end)
 duration = time.time() - start_time
-visualize_search(image, path)
 print(duration)
 print(path)
+visualize_search(image, path)
+
 
 start_time = time.time()
 # an ordered list of (x,y) tuples, representing the path to traverse from start-->goal
 path = a_star(pixel_matrix, start, end)
 duration = time.time() - start_time
-visualize_search(image, path)
 print(duration)
 print(path)
+visualize_search(image, path)
