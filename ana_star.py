@@ -240,11 +240,14 @@ def remove_sub_optimal_nodes():
 Main Code
 '''
 
-difficulty = "hard.jpg"
+difficulty = "very_trivial.png"
 
 image = cv2.imread(difficulty)
 
-if difficulty == "trivial.jpg":
+if difficulty == "very_trivial.png":
+    start = (40, 0)
+    end = (180, 224)
+elif difficulty == "trivial.jpg":
     start = (1, 8)
     end = (1, 20)
 elif difficulty == "medium.jpg":

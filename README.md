@@ -21,6 +21,9 @@ ANA* and Bi-directional RRT don't require any inputs at the moment. To provide a
 
 You can use the following start and end locations for the images in this repository -
 
+- Very Trivial
+    start = (40, 0) 
+    goal = (180, 224)
 - Trivial
     start = (1, 8)
     goal = (1, 20)

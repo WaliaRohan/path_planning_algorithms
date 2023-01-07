@@ -15,10 +15,9 @@ import sys
 # Colors codes to mark path and start/goal points given by computed solution
 NEON_GREEN = (0, 255, 0)  # for start/goal points
 PURPLE = (139, 26, 85)  # for path
-LIGHT_GRAY = (255, 0, 0)  # frontier nodes - currently not used
-DARK_GRAY = (0, 0, 255)  # expanded nodes - currently not used
+BLUE = (0, 0, 255) # for visited (expanded) nodes
 
-def visualize_search(image, path, start, goal):
+def visualize_search(image, path, visited_nodes, start, goal, hold=False):
     """
     This function shows the calculated path on a greyscale version of the 
     original image and start/end points overlayed on the original image. It 
@@ -35,26 +34,30 @@ def visualize_search(image, path, start, goal):
     for waypoint in path:
         image[waypoint[0], waypoint[1]] = PURPLE
 
+    for node in visited_nodes:
+        if path.count(node) == 0:
+            image[node[0], node[1]] = BLUE
+
     # draw start and end pixels
     image[start[0], start[1]] = NEON_GREEN
     image[goal[0], goal[1]] = NEON_GREEN
 
     # resize the image for visualization purpose
     if (max(image.shape[0], image.shape[1]) < 500):
-        scale_percent = 1000
-        new_w = int(image.shape[1] * scale_percent / 100)
-        new_h = int(image.shape[0] * scale_percent / 100)
-        image= cv2.resize(image, (new_w, new_h))
+        image= cv2.resize(image, (500, 500))
+
+    wait_time = 10 # wait time in milliseconds before closing the window
+
+    if hold:
+        wait_time = 0 # force the window to stay open till keypress
 
     cv2.imshow("Result", image)
+    cv2.waitKey(wait_time)
+    
+    if hold:
+        cv2.destroyAllWindows()
 
-    cv2.waitKey(0)
-
-    # closing all open windows
-    cv2.destroyAllWindows()
-
-
-def grayscale_info(map_original):
+def grayscale_info(image):
     """
     This function creates a binary occupancy grid from an image. The image is
     first converted to greyscale. If the color value of a cell is > 255/2 
@@ -67,18 +70,18 @@ def grayscale_info(map_original):
     Returns:
         2x2 numpy.ndarray: grayscale version of the image
     """
-    map = cv2.cvtColor(map_original, cv2.COLOR_BGR2GRAY)
+    map = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     rows, columns = map.shape[0], map.shape[1]
-    graph = numpy.zeros((rows, columns), dtype=int)
+    occupancy_grid = numpy.zeros((rows, columns), dtype=int)
 
-    for i in range(0, len(graph) - 1):
-        for j in range(0, len(graph[0]) - 1):
+    for i in range(0, len(occupancy_grid) - 1):
+        for j in range(0, len(occupancy_grid[0]) - 1):
             if map[i, j] > 255 / 2:
-                graph[i][j] = 1
+                occupancy_grid[i][j] = 1
             else:
-                graph[i][j] = 0
-    return graph
+                occupancy_grid[i][j] = 0
+    return occupancy_grid
 
 
 def h(goal, cell):
@@ -95,6 +98,7 @@ def h(goal, cell):
     """
 
     heuristic = abs(goal[0] - cell[0]) + abs(goal[1] - cell[1])  # manhattan distance
+    #heuristic = math.sqrt(math.pow(goal[0] - cell[0], 2) + math.pow(goal[1] - cell[1], 2)) #euclidean distance
     return heuristic
 
 # NOTE: g and h both use Manhattan distance for now. This might change.
@@ -111,7 +115,7 @@ def g(start, cell):
     Returns:
         int: Manhattan distance between start location and cell
     """
-    g_value = abs(start[0] - cell[0]) + abs(start[1] - cell[1])  # manhattan distance
+    g_value = abs(cell[0] - start[0]) + abs(cell[1] - start[1])  # manhattan distance
     return g_value
 
 
@@ -162,9 +166,9 @@ def return_neighbors(row, col, grid_shape):
     return list
 
 
-def a_star(occupancy_grid, start, goal):
+def a_star(occupancy_grid, start, goal, image):
     visited = []
-    unvisited = [start]
+    to_visit = [start]
 
     gList = {}
     hList = {}
@@ -173,40 +177,43 @@ def a_star(occupancy_grid, start, goal):
     for i in range(0, occupancy_grid.shape[0]):
         for j in range(0, occupancy_grid.shape[1]):
             gList[(i, j)] = math.inf
-            hList[(i, j)] = math.inf
             fList[(i, j)] = math.inf
 
     gList[start] = g(start, start)
     hList[start] = h(goal, start)
-    fList[start] = g(start, start) + h(goal, start)
+    fList[start] = g(start, start) + hList[start]
     prev = {start: None}
 
     current = start
     counter = 0
 
-    while (current != goal and open.__sizeof__() > 0) and counter <= occupancy_grid.size * 2:
+    while current != goal and counter <= occupancy_grid.size * 2:
         # print(counter)
         neighbor_list = return_neighbors(
             current[0], current[1], occupancy_grid.shape)
         for neighbor in neighbor_list:
             if occupancy_grid[neighbor[0], neighbor[1]] != 0 and visited.count(neighbor) == 0:
-                if unvisited.count(neighbor) == 0:
-                    unvisited.append(neighbor)
-                if gList[neighbor] > g(start, neighbor):
-                    gList[neighbor] = g(start, neighbor)
-                if hList[neighbor] > h(start, neighbor):
-                    hList[neighbor] = h(start, neighbor)
-                if fList[neighbor] > gList[neighbor] + hList[neighbor]:
-                    fList[neighbor] = f(start, goal, neighbor)
+                if to_visit.count(neighbor) == 0:
+                    to_visit.append(neighbor)
+                if gList[neighbor] > gList[current] + g(current, neighbor):
+                    gList[neighbor] = gList[current] + g(current, neighbor)
+                
+                if neighbor not in hList:
+                    hList[neighbor] = h(goal, neighbor)
+                
+                if fList[neighbor] > gList[current] + g(current, neighbor) + hList[neighbor]:
+                    fList[neighbor] = gList[current] + g(current, neighbor) + hList[neighbor]
                     prev[neighbor] = current
+
         if visited.count(current) == 0:
             visited.append(current)
-        if len(unvisited) != 0:
-            unvisited.remove(current)
-            if len(unvisited) != 0:
-                unvisited.sort(key=lambda cell: f(start, goal, cell))
-                current = unvisited[0]
+        if len(to_visit) != 0:
+            to_visit.remove(current)
+            if len(to_visit) != 0:
+                to_visit.sort(key=lambda cell: f(start, goal, cell))
+                current = to_visit[0]
         counter = counter + 1
+        visualize_search(image, [], visited, start, goal)
 
     '''
     'current' cell should ideally be goal cell at this point. Back-track from
@@ -223,7 +230,7 @@ def a_star(occupancy_grid, start, goal):
         node = prev[node]
         path.append(node)
 
-    return path
+    return [path, visited]
 
 
 def main(argv):
@@ -259,12 +266,14 @@ def main(argv):
     show_path = argv[3]
 
     start_time = time.time()    
-    path = a_star(occupancy_grid, start, goal)
+    lists = a_star(occupancy_grid, start, goal, image)
+    path = lists[0]
+    visited_nodes = lists[1]
     duration = time.time() - start_time
     print('Planning Time: ' + str(duration)  + ' seconds')
     if show_path=='true':
         print('Path: ' + str(path))
-    visualize_search(image, path, start, goal)
+    visualize_search(image, path, visited_nodes, start, goal, hold=True)
 
 if __name__ == "__main__":
     main(sys.argv[1:])

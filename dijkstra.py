@@ -16,10 +16,9 @@ import argparse
 # Colors codes to mark path and start/end points given by computed solution
 NEON_GREEN = (0, 255, 0)  # for start/end points
 PURPLE = (139, 26, 85)  # for path
-LIGHT_GRAY = (255, 0, 0)  # frontier nodes - currently not used
-DARK_GRAY = (0, 0, 255)  # expanded nodes - currently not used
+BLUE = (0, 0, 255) # for visited (expanded) nodes
 
-def visualize_search(image, path, start, goal):
+def visualize_search(image, path, visited_nodes, start, goal, hold=False):
     """
     This function shows the calculated path on a greyscale version of the 
     original image and start/end points overlayed on the original image. It 
@@ -32,9 +31,13 @@ def visualize_search(image, path, start, goal):
                                   original image
     """
 
-    # draw path pixels
+    # draw path
     for waypoint in path:
         image[waypoint[0], waypoint[1]] = PURPLE
+
+    # draw visited nodes
+    for node in visited_nodes:
+        image[node[0], node[1]] = BLUE
 
     # draw start and end pixels
     image[start[0], start[1]] = NEON_GREEN
@@ -42,17 +45,18 @@ def visualize_search(image, path, start, goal):
 
     # resize the image for visualization purpose
     if (max(image.shape[0], image.shape[1]) < 500):
-        scale_percent = 1000
-        new_w = int(image.shape[1] * scale_percent / 100)
-        new_h = int(image.shape[0] * scale_percent / 100)
-        image= cv2.resize(image, (new_w, new_h))
+        image= cv2.resize(image, (500, 500))
+
+    wait_time = 10 # wait time in milliseconds
+
+    if hold:
+        wait_time = 0 # force the window to stay open till keypress
 
     cv2.imshow("Result", image)
-
-    cv2.waitKey(0)
-
-    # closing all open windows
-    cv2.destroyAllWindows()
+    cv2.waitKey(wait_time)
+    
+    if hold:
+        cv2.destroyAllWindows()
 
 
 def grayscale_info(map_original):
@@ -126,7 +130,7 @@ def return_neighbors(row, col, grid_shape):
     return list
 
 
-def dijkstra(occupancy_grid, start, goal):
+def dijkstra(occupancy_grid, start, goal, image):
     """
     This function uses Dijkstra's algorithm to find a path from start location
     to a goal location on the grid.
@@ -140,9 +144,9 @@ def dijkstra(occupancy_grid, start, goal):
         List[(int, int)]: Path from start to goal location
     """
 
-    # list of visited and unvisited cells
+    # list of visited and to_visit cells
     visited = []
-    unvisited = [start]
+    to_visit = [start]
 
     # dictionary of 'g' values for each cell in the occupancy grid
     gList = {}
@@ -160,6 +164,8 @@ def dijkstra(occupancy_grid, start, goal):
 
     # try to reach the goal cell while the counter allows
     while current != goal and counter <= occupancy_grid.size * 2:
+        
+        # get neighbors of current cell
         neighbor_list = return_neighbors(current[0], current[1],
                                          occupancy_grid.shape)
 
@@ -168,25 +174,28 @@ def dijkstra(occupancy_grid, start, goal):
             if (occupancy_grid[neighbor[0], neighbor[1]] != 0 and
                 visited.count(neighbor) == 0):
 
+                # mark neighbor to be visited (if not already marked)
+                if to_visit.count(neighbor) == 0:
+                    to_visit.append(neighbor)
 
-                if unvisited.count(neighbor) == 0:
-                    unvisited.append(neighbor)
-
-                if gList[neighbor] > g(start, neighbor):
-                    gList[neighbor] = g(start, neighbor)
+                if gList[neighbor] > gList[current] + g(current, neighbor):
+                    gList[neighbor] = gList[current] + g(current, neighbor)
                     prev[neighbor] = current
 
+        # add current cell as visited
         if visited.count(current) == 0:
             visited.append(current)
 
-        if len(unvisited) != 0:
-            unvisited.remove(current)
+        if len(to_visit) != 0: # at start to_visit will be empty
+            to_visit.remove(current) # remove current cell from being visited
 
-            if len(unvisited) != 0:
-                unvisited.sort(key=lambda cell: g(start, cell))
-                current = unvisited[0]
+            
+            if len(to_visit) != 0:
+                to_visit.sort(key=lambda cell: g(start, cell))
+                current = to_visit[0]
 
         counter = counter + 1
+        visualize_search(image, [], visited, start, goal)
 
     '''
     'current' cell should ideally be goal cell at this point. Back-track from
@@ -239,12 +248,12 @@ def main(argv):
     show_path = argv[3]
 
     start_time = time.time()    
-    path = dijkstra(occupancy_grid, start, goal)
+    path = dijkstra(occupancy_grid, start, goal, image)
     duration = time.time() - start_time
     print('Planning Time: ' + str(duration)  + ' seconds')
     if show_path=='true':
         print('Path: ' + str(path))
-    visualize_search(image, path, start, goal)
+    visualize_search(image, path, [], start, goal)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
